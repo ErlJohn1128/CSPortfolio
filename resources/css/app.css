@@ -1,0 +1,223 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+@import "@fontsource-variable/inter";
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-manrope: "Manrope", sans-serif;
+
+    --color-zinc-50: #fafafa;
+    --color-zinc-100: #f5f5f5;
+    --color-zinc-200: #e5e5e5;
+    --color-zinc-300: #d4d4d4;
+    --color-zinc-400: #a3a3a3;
+    --color-zinc-500: #737373;
+    --color-zinc-600: #525252;
+    --color-zinc-700: #404040;
+    --color-zinc-800: #262626;
+    --color-zinc-900: #171717;
+    --color-zinc-950: #0a0a0a;
+
+    --color-accent: var(--color-neutral-800);
+    --color-accent-content: var(--color-neutral-800);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-white);
+        --color-accent-content: var(--color-white);
+        --color-accent-foreground: var(--color-neutral-800);
+    }
+}
+
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+[data-flux-field]:not(ui-radio, ui-checkbox) {
+    @apply grid gap-2;
+}
+
+[data-flux-label] {
+    @apply  !mb-0 !leading-tight;
+}
+
+input:focus[data-flux-control],
+textarea:focus[data-flux-control],
+select:focus[data-flux-control] {
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+}
+
+
+/* \[:where(&)\]:size-4 {
+    @apply size-4;
+} */
+
+@layer components {
+  @media (forced-colors: none) {
+    .crop-range {
+      --crop-fill: #404040;
+      --crop-track: #d4d4d8;
+      appearance: none;
+      height: 2rem;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .dark .crop-range {
+      --crop-fill: #d4d4d4;
+      --crop-track: #525252;
+    }
+
+    .crop-range:focus-visible {
+      outline: 2px solid var(--crop-fill);
+      outline-offset: 2px;
+      border-radius: 0.375rem;
+    }
+
+    .crop-range::-webkit-slider-runnable-track {
+      height: 0.375rem;
+      border-radius: 9999px;
+      background: linear-gradient(to right, var(--crop-fill) var(--crop-progress, 0%), var(--crop-track) var(--crop-progress, 0%));
+    }
+
+    .crop-range::-webkit-slider-thumb {
+      appearance: none;
+      width: 1rem;
+      height: 1rem;
+      margin-top: -0.3125rem;
+      border: 2px solid white;
+      border-radius: 50%;
+      background: var(--crop-fill);
+      box-shadow: 0 0 0 1px var(--crop-fill), 0 1px 3px rgb(0 0 0 / 0.25);
+    }
+
+    .crop-range::-moz-range-track {
+      height: 0.375rem;
+      border-radius: 9999px;
+      background: linear-gradient(to right, var(--crop-fill) var(--crop-progress, 0%), var(--crop-track) var(--crop-progress, 0%));
+    }
+
+    .crop-range::-moz-range-thumb {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid white;
+      border-radius: 50%;
+      background: var(--crop-fill);
+      box-shadow: 0 0 0 1px var(--crop-fill), 0 1px 3px rgb(0 0 0 / 0.25);
+    }
+  }
+
+  .lamp-toggle {
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 0.75em;
+    box-shadow: 0.125em 0.125em 0 0.125em rgba(0, 0, 0, 0.3) inset;
+    color: #fdea7b;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15em;
+    width: 3em;
+    height: 1.5em;
+    cursor: pointer;
+    transition:
+      background-color 0.1s 0.3s ease-out,
+      box-shadow 0.1s 0.3s ease-out;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+
+  .lamp-toggle::before,
+  .lamp-toggle::after {
+    content: "";
+    display: block;
+  }
+
+  .lamp-toggle::before {
+    background-color: #d7d7d7;
+    border-radius: 50%;
+    width: 1.2em;
+    height: 1.2em;
+    transition:
+      background-color 0.1s 0.3s ease-out,
+      transform 0.3s ease-out;
+    z-index: 1;
+  }
+
+  .lamp-toggle::after {
+    background:
+      linear-gradient(transparent 50%, rgba(0, 0, 0, 0.15) 0) 0 50% / 50% 100%,
+      repeating-linear-gradient(90deg, #bbb 0, #bbb, #bbb 20%, #999 20%, #999 40%)
+        0 50% / 50% 100%,
+      radial-gradient(circle at 50% 50%, #888 25%, transparent 26%);
+    background-repeat: no-repeat;
+    border: 0.25em solid transparent;
+    border-left: 0.4em solid #d8d8d8;
+    border-right: 0 solid transparent;
+    transition:
+      border-left-color 0.1s 0.3s ease-out,
+      transform 0.3s ease-out;
+    transform: translateX(-22.5%);
+    transform-origin: 25% 50%;
+    width: 1.2em;
+    height: 1em;
+    box-sizing: border-box;
+  }
+
+  /* Checked State */
+  .lamp-toggle:checked {
+    background-color: rgba(0, 0, 0, 0.45);
+    box-shadow: 0.125em 0.125em 0 0.125em rgba(0, 0, 0, 0.1) inset;
+  }
+
+  .lamp-toggle:checked::before {
+    background-color: currentColor;
+    transform: translateX(125%);
+  }
+
+  .lamp-toggle:checked::after {
+    border-left-color: currentColor;
+    transform: translateX(-2.5%) rotateY(180deg);
+  }
+}
+
+::view-transition-old(root) {
+  animation: none;
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  animation: theme-reveal 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  clip-path: circle(0 at var(--theme-toggle-x, 50vw) var(--theme-toggle-y, 50vh));
+  z-index: 2;
+}
+
+@keyframes theme-reveal {
+  to {
+    clip-path: circle(150vmax at var(--theme-toggle-x, 50vw) var(--theme-toggle-y, 50vh));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation: none;
+    clip-path: none;
+  }
+}
+
