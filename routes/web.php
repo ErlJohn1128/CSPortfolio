@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Dashboard;
+use App\Http\Middleware\HydrateProfileUploads;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
@@ -68,7 +69,8 @@ Route::get('/profile/{user}', function (User $user) {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [Dashboard::class, 'index'])->name('dashboard');
-    Route::post('/dashboard', [Dashboard::class, 'store'])->name('dashboard.store');
+    Route::post('/dashboard/uploads', [Dashboard::class, 'uploadUrl'])->middleware('throttle:30,1')->name('dashboard.upload-url');
+    Route::post('/dashboard', [Dashboard::class, 'store'])->middleware(HydrateProfileUploads::class)->name('dashboard.store');
 });
 
 require __DIR__.'/settings.php';

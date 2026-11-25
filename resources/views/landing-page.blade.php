@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="bg-white dark:bg-[#111111]">
+    @php
+        $profileImages = app(\App\Services\ProfileImages::class);
+    @endphp
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>{{ __('Home') }} - {{ config('app.name', 'CSPortfolio') }}</title>
+
+        <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
 
         @fonts
 
@@ -12,7 +17,13 @@
         @include('partials.appearance')
         
     </head>
-    <body class="font-sans text-zinc-900 dark:text-zinc-100 flex flex-col items-center min-h-screen py-2 mx-2 lg:mx-18">
+    <body class="relative isolate font-sans text-zinc-900 dark:text-zinc-100 flex flex-col items-center min-h-screen py-2 mx-2 lg:mx-18">
+        <div aria-hidden="true" class="pointer-events-none sticky top-0 -z-10 -mb-[100vh] h-screen w-full shrink-0 overflow-hidden">
+            <div class="absolute inset-y-0 right-[12%] w-[22%] border-x border-zinc-200/70 bg-zinc-100/60 dark:border-zinc-800 dark:bg-zinc-900/50"></div>
+            <div class="absolute -right-24 top-12 size-64 rounded-full border border-sky-300/60 dark:border-sky-800/60 sm:size-96"></div>
+            <div class="absolute -right-12 top-24 size-64 rounded-full border border-sky-300/60 dark:border-sky-800/60 sm:size-96"></div>
+            <div class="absolute bottom-16 -left-20 size-48 rotate-45 border border-amber-300/60 dark:border-amber-800/60 sm:size-72"></div>
+        </div>
         <header class="px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 w-full">
             <div class="font-bold text-md">
                 <span></span>
@@ -47,7 +58,7 @@
                 </p>
             </header>
 
-            <main class="border border-gray-300 rounded-md my-10 flex w-full flex-col min-h-180">
+            <main class="border border-gray-300 rounded-md my-10 flex w-full flex-col min-h-180 bg-white/95 dark:border-zinc-700 dark:bg-[#111111]/95">
                 <div class="flex flex-col gap-3 mt-2 py-2 border-b border-gray-300 dark:border-zinc-700 px-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <ul class="flex p-2 gap-6">
                         @foreach ($blocks as $value => $label)
@@ -102,7 +113,7 @@
                             @endphp
                             <div data-carousel class="relative flex aspect-video items-center justify-center bg-zinc-100 dark:bg-zinc-900">
                                 @forelse ($desktopPreviews as $index)
-                                    <img src="{{ asset('storage/'.$previews['desktop_'.$index]) }}" alt="Desktop preview {{ $index }} for {{ $student->name }}" @class(['carousel-slide aspect-video w-full object-cover', 'hidden' => ! $loop->first]) />
+                                    <img src="{{ $profileImages->url($previews['desktop_'.$index]) }}" alt="Desktop preview {{ $index }} for {{ $student->name }}" @class(['carousel-slide aspect-video w-full object-cover', 'hidden' => ! $loop->first]) />
                                 @empty
                                     <p class="text-sm text-zinc-600 dark:text-zinc-400">Portfolio previews not provided yet.</p>
                                 @endforelse
@@ -119,7 +130,7 @@
                             <div class="px-6">
                                 <div aria-hidden="true" class="relative z-10 -mt-14 flex h-25 w-25 items-center justify-center rounded-full border-4 border-white bg-slate-200 text-xl font-semibold dark:border-[#111111] dark:bg-zinc-800">
                                     @if ($student->profile_photo_path)
-                                        <img src="{{ asset('storage/'.$student->profile_photo_path) }}" alt="" class="h-full w-full rounded-full object-cover" />
+                                        <img src="{{ $profileImages->url($student->profile_photo_path) }}" alt="" class="h-full w-full rounded-full object-cover" />
                                     @else
                                         {{ $student->initials() }}
                                     @endif

@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ProfileImages;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use RuntimeException;
 use Throwable;
 
 class Dashboard extends Controller
@@ -33,7 +35,41 @@ class Dashboard extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function uploadUrl(Request $request, ProfileImages $images): JsonResponse
+    {
+        abort_unless($images->usesDirectUploads(), 404);
+
+        $validated = $request->validate([
+            'slot' => ['required', Rule::in(['profile_photo', 'desktop_1', 'desktop_2', 'desktop_3', 'mobile_1', 'mobile_2', 'mobile_3'])],
+            'mime' => ['required', Rule::in(['image/jpeg', 'image/png', 'image/webp'])],
+        ]);
+
+        $user = $request->user();
+        abort_if($user === null, 403);
+        if ($request->session()->get('profile_upload_cleanup_at', 0) < now()->subHour()->timestamp) {
+            $images->cleanupTemporary($user->getKey());
+            $request->session()->put('profile_upload_cleanup_at', now()->timestamp);
+        }
+
+        $slot = $validated['slot'];
+        $previous = $request->session()->get('profile_uploads.'.$slot);
+        if ($previous && $previous['user_id'] === $user->getKey()) {
+            $images->deleteTemporary($previous['path']);
+        }
+
+        $path = $user->getKey().'/'.Str::uuid();
+        $url = $images->temporaryUploadUrl($path, $validated['mime']);
+        $request->session()->put('profile_uploads.'.$slot, [
+            'user_id' => $user->getKey(),
+            'path' => $path,
+            'mime' => $validated['mime'],
+            'expires_at' => now()->addMinutes(15)->timestamp,
+        ]);
+
+        return response()->json(['url' => $url]);
+    }
+
+    public function store(Request $request, ProfileImages $images): RedirectResponse
     {
         $user = $request->user();
         abort_if($user === null, 403);
@@ -62,7 +98,8 @@ class Dashboard extends Controller
                 : ['nullable', 'url', 'max:2048'];
         }
 
-        $validated = $request->validate([
+        $stagedFiles = $request->attributes->get('profile_staged_files', []);
+        $validated = Validator::make(array_replace_recursive($request->all(), $stagedFiles), [
             'name' => ['required', 'string', 'max:255'],
             'block' => ['required', Rule::in(['BSCS-2A'])],
             'bio' => ['nullable', 'string', 'max:2000'],
@@ -72,7 +109,7 @@ class Dashboard extends Controller
             'previews' => ['nullable', 'array:desktop_1,desktop_2,desktop_3,mobile_1,mobile_2,mobile_3'],
             ...$previewRules,
             ...$socialRules,
-        ]);
+        ])->validate();
 
         $previousPhoto = $user->profile_photo_path;
         $newPhoto = null;
@@ -81,12 +118,9 @@ class Dashboard extends Controller
         $replacedFiles = [];
 
         try {
-            if ($request->hasFile('profile_photo')) {
-                $newPhoto = $request->file('profile_photo')->store('profile-pictures', 'public');
-
-                if ($newPhoto === false) {
-                    throw new RuntimeException('Failed to store profile picture.');
-                }
+            $photo = $stagedFiles['profile_photo'] ?? $request->file('profile_photo');
+            if ($photo !== null) {
+                $newPhoto = $images->store($photo, 'profile-pictures');
 
                 $newFiles[] = $newPhoto;
 
@@ -98,17 +132,13 @@ class Dashboard extends Controller
             foreach (['desktop', 'mobile'] as $type) {
                 foreach (range(1, 3) as $index) {
                     $slot = $type.'_'.$index;
-                    $file = $request->file('previews.'.$slot);
+                    $file = $stagedFiles['previews'][$slot] ?? $request->file('previews.'.$slot);
 
                     if ($file === null) {
                         continue;
                     }
 
-                    $path = $file->store('portfolio-previews', 'public');
-
-                    if ($path === false) {
-                        throw new RuntimeException('Failed to store portfolio preview.');
-                    }
+                    $path = $images->store($file, 'portfolio-previews');
 
                     $newFiles[] = $path;
 
@@ -148,8 +178,12 @@ class Dashboard extends Controller
             });
         } catch (Throwable $exception) {
             foreach ($newFiles as $path) {
-                if (! Storage::disk('public')->delete($path)) {
-                    Log::warning('Failed to delete uploaded image after profile update failed.', ['path' => $path]);
+                try {
+                    if (! $images->delete($path)) {
+                        Log::warning('Failed to delete uploaded image after profile update failed.', ['path' => $path]);
+                    }
+                } catch (Throwable $cleanupException) {
+                    report($cleanupException);
                 }
             }
 
@@ -157,8 +191,12 @@ class Dashboard extends Controller
         }
 
         foreach ($replacedFiles as $path) {
-            if (! Storage::disk('public')->delete($path)) {
-                Log::warning('Failed to delete replaced profile image.', ['path' => $path]);
+            try {
+                if (! $images->delete($path)) {
+                    Log::warning('Failed to delete replaced profile image.', ['path' => $path]);
+                }
+            } catch (Throwable $cleanupException) {
+                report($cleanupException);
             }
         }
 

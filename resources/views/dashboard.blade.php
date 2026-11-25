@@ -1,4 +1,5 @@
 <x-layouts::app :title="__('Dashboard')">
+    @php($profileImages = app(\App\Services\ProfileImages::class))
     <main class="min-h-[calc(100vh-4rem)] bg-zinc-50 px-4 py-10 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 sm:px-6 lg:px-8">
         <div class="mx-auto flex w-full max-w-3xl flex-col gap-6">
             <header class="flex flex-col gap-1">
@@ -20,7 +21,7 @@
                 <a href="{{ route('security.edit') }}" class="font-semibold underline underline-offset-2">Change password</a>
             </div>
 
-            <form method="POST" action="{{ route('dashboard.store') }}" enctype="multipart/form-data" class="flex flex-col gap-6">
+            <form method="POST" action="{{ route('dashboard.store') }}" enctype="multipart/form-data" @if ($profileImages->usesDirectUploads()) data-direct-upload-url="{{ route('dashboard.upload-url') }}" @endif class="flex flex-col gap-6">
                 @csrf
 
                 <section class="flex flex-col gap-5 rounded-md border border-zinc-200 bg-white p-5 shadow-sm shadow-zinc-950/5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
@@ -29,10 +30,10 @@
                         <p class="text-xs leading-5 text-zinc-600 dark:text-zinc-400">To appear on the home page, add a bio, profile picture, all six previews, and both portfolio links.</p>
                     </div>
 
-                    <div class="flex flex-col gap-2" data-image-crop data-crop-ratio="1:1" data-crop-source="{{ $user->profile_photo_path ? asset('storage/'.$user->profile_photo_path) : '' }}">
+                    <div class="flex flex-col gap-2" data-image-crop data-crop-ratio="1:1" data-crop-source="{{ $user->profile_photo_path ? $profileImages->url($user->profile_photo_path) : '' }}">
                         <label for="profile_photo" class="text-sm font-medium">Profile picture</label>
                         @if ($user->profile_photo_path)
-                            <img data-crop-current src="{{ asset('storage/'.$user->profile_photo_path) }}" alt="Current profile picture" class="h-20 w-20 rounded-full object-cover" />
+                            <img data-crop-current src="{{ $profileImages->url($user->profile_photo_path) }}" alt="Current profile picture" class="h-20 w-20 rounded-full object-cover" />
                         @endif
                         <input id="profile_photo" name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" class="w-full min-w-0 rounded-md border border-zinc-300 bg-white p-1.5 text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:file:bg-zinc-800 dark:file:text-zinc-200 dark:hover:file:bg-zinc-700" />
                         <p class="text-xs leading-5 text-zinc-600 dark:text-zinc-400">JPEG, PNG or WebP, up to 2 MB. Leave empty to keep your current picture.</p>
@@ -110,10 +111,10 @@
                             <div class="grid gap-4 sm:grid-cols-2">
                                 @foreach (['desktop' => 'Desktop (16:9)', 'mobile' => 'Mobile (9:16)'] as $type => $label)
                                     @php($slot = $type.'_'.$index)
-                                    <div class="flex min-w-0 flex-col gap-2" data-image-crop data-crop-ratio="{{ $type === 'desktop' ? '16:9' : '9:16' }}" data-crop-source="{{ filled($user->preview_images[$slot] ?? null) ? asset('storage/'.$user->preview_images[$slot]) : '' }}">
+                                    <div class="flex min-w-0 flex-col gap-2" data-image-crop data-crop-ratio="{{ $type === 'desktop' ? '16:9' : '9:16' }}" data-crop-source="{{ filled($user->preview_images[$slot] ?? null) ? $profileImages->url($user->preview_images[$slot]) : '' }}">
                                         <label for="preview-{{ $slot }}" class="text-sm font-medium">{{ $label }}</label>
                                         @if (filled($user->preview_images[$slot] ?? null))
-                                            <img data-crop-current src="{{ asset('storage/'.$user->preview_images[$slot]) }}" alt="Current {{ strtolower($label) }} preview {{ $index }}" @class(['w-full rounded-md object-cover', 'aspect-video' => $type === 'desktop', 'aspect-[9/16] max-w-24' => $type === 'mobile']) />
+                                            <img data-crop-current src="{{ $profileImages->url($user->preview_images[$slot]) }}" alt="Current {{ strtolower($label) }} preview {{ $index }}" @class(['w-full rounded-md object-cover', 'aspect-video' => $type === 'desktop', 'aspect-[9/16] max-w-24' => $type === 'mobile']) />
                                         @endif
                                         <input id="preview-{{ $slot }}" name="previews[{{ $slot }}]" type="file" accept="image/jpeg,image/png,image/webp" @required(blank($user->preview_images[$slot] ?? null)) class="w-full min-w-0 rounded-md border border-zinc-300 bg-white p-1.5 text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400 dark:file:bg-zinc-800 dark:file:text-zinc-200 dark:hover:file:bg-zinc-700" />
                                         @include('partials.image-crop-controls', ['cropId' => 'preview-'.$slot, 'cropType' => $type])

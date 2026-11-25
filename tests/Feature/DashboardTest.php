@@ -1,9 +1,11 @@
 <?php
 
 use App\Models\User;
+use App\Services\ProfileImages;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
+use Mockery\MockInterface;
 
 function existingPortfolioPreviews(): array
 {
@@ -451,4 +453,189 @@ test('a block must be selected even when a program was previously saved', functi
 
     expect($user->fresh()->program)->toBe('BSCS');
     expect($user->fresh()->block)->toBeNull();
+});
+
+test('only verified users can request a direct image upload', function () {
+    config(['filesystems.profile_storage' => 'supabase']);
+
+    $this->postJson(route('dashboard.upload-url'), ['slot' => 'profile_photo', 'mime' => 'image/png'])
+        ->assertUnauthorized();
+
+    $user = User::factory()->unverified()->create();
+    $this->actingAs($user)->postJson(route('dashboard.upload-url'), ['slot' => 'profile_photo', 'mime' => 'image/png'])
+        ->assertForbidden();
+});
+
+test('a direct upload URL is restricted to an allowed image slot and type', function () {
+    $user = User::factory()->create();
+    $this->mock(ProfileImages::class, function (MockInterface $images) use ($user) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldReceive('cleanupTemporary')->once()->with($user->id);
+        $images->shouldReceive('temporaryUploadUrl')->once()
+            ->withArgs(fn (string $path, string $mime) => str_starts_with($path, $user->id.'/') && $mime === 'image/png')
+            ->andReturn('https://uploads.example.com/signed');
+    });
+
+    $this->actingAs($user)->postJson(route('dashboard.upload-url'), ['slot' => 'profile_photo', 'mime' => 'image/png'])
+        ->assertOk()
+        ->assertJsonPath('url', 'https://uploads.example.com/signed');
+
+    expect(session('profile_uploads.profile_photo.user_id'))->toBe($user->id);
+    $this->postJson(route('dashboard.upload-url'), ['slot' => 'other', 'mime' => 'text/html'])
+        ->assertUnprocessable()
+        ->assertInvalid(['slot', 'mime']);
+});
+
+test('a staged image is validated and saved to the profile', function () {
+    $user = User::factory()->create(['preview_images' => existingPortfolioPreviews()]);
+    $image = UploadedFile::fake()->image('photo.png');
+    $contents = file_get_contents($image->getRealPath());
+    $path = $user->id.'/staged-image';
+
+    $this->mock(ProfileImages::class, function (MockInterface $images) use ($path, $contents) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldReceive('downloadTemporary')->once()->with($path, 'profile_photo')->andReturn($contents);
+        $images->shouldReceive('store')->once()
+            ->withArgs(fn (UploadedFile $file, string $directory) => $file->getMimeType() === 'image/png' && $directory === 'profile-pictures')
+            ->andReturn('profile-pictures/saved.png');
+        $images->shouldReceive('deleteTemporary')->once()->with($path);
+    });
+
+    $this->actingAs($user)->withSession(['profile_uploads' => [
+        'profile_photo' => ['user_id' => $user->id, 'path' => $path, 'mime' => 'image/png', 'expires_at' => now()->addMinutes(10)->timestamp],
+    ]])->post(route('dashboard.store'), [
+        ...validPortfolioLinks(),
+        'name' => $user->name,
+        'block' => 'BSCS-2A',
+        'socials' => ['email' => ''],
+        'staged' => ['profile_photo' => '1'],
+    ])->assertRedirect(route('dashboard'))->assertSessionHas('success');
+
+    expect($user->fresh()->profile_photo_path)->toBe('profile-pictures/saved.png');
+    expect(session('profile_uploads.profile_photo'))->toBeNull();
+});
+
+test('all six staged portfolio previews can be saved together', function () {
+    $user = User::factory()->create();
+    $image = UploadedFile::fake()->image('preview.png');
+    $contents = file_get_contents($image->getRealPath());
+    $staged = [];
+    $uploads = [];
+    foreach (['desktop', 'mobile'] as $type) {
+        foreach (range(1, 3) as $index) {
+            $slot = $type.'_'.$index;
+            $staged[$slot] = '1';
+            $uploads[$slot] = ['user_id' => $user->id, 'path' => $user->id.'/'.$slot, 'mime' => 'image/png', 'expires_at' => now()->addMinutes(10)->timestamp];
+        }
+    }
+
+    $this->mock(ProfileImages::class, function (MockInterface $images) use ($contents) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldReceive('downloadTemporary')->times(6)->andReturn($contents);
+        $images->shouldReceive('store')->times(6)->andReturn(
+            'portfolio-previews/1.png', 'portfolio-previews/2.png', 'portfolio-previews/3.png',
+            'portfolio-previews/4.png', 'portfolio-previews/5.png', 'portfolio-previews/6.png',
+        );
+        $images->shouldReceive('deleteTemporary')->times(6);
+    });
+
+    $this->actingAs($user)->withSession(['profile_uploads' => $uploads])->post(route('dashboard.store'), [
+        ...validPortfolioLinks(),
+        'name' => $user->name,
+        'block' => 'BSCS-2A',
+        'socials' => ['email' => ''],
+        'staged' => $staged,
+    ])->assertRedirect(route('dashboard'))->assertSessionHas('success');
+
+    expect($user->fresh()->preview_images)->toHaveCount(6);
+    expect(session('profile_uploads'))->toBeEmpty();
+});
+
+test('another users staged image cannot be attached to a profile', function () {
+    $owner = User::factory()->create();
+    $user = User::factory()->create(['preview_images' => existingPortfolioPreviews()]);
+    $this->mock(ProfileImages::class, function (MockInterface $images) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldNotReceive('downloadTemporary');
+        $images->shouldNotReceive('store');
+    });
+
+    $this->actingAs($user)->withSession(['profile_uploads' => [
+        'profile_photo' => ['user_id' => $owner->id, 'path' => 'other/image', 'mime' => 'image/png', 'expires_at' => now()->addMinutes(10)->timestamp],
+    ]])->post(route('dashboard.store'), [
+        ...validPortfolioLinks(),
+        'name' => $user->name,
+        'block' => 'BSCS-2A',
+        'socials' => ['email' => ''],
+        'staged' => ['profile_photo' => '1'],
+    ])->assertInvalid(['profile_photo']);
+
+    expect($user->fresh()->profile_photo_path)->toBeNull();
+});
+
+test('expired staged images cannot be attached to a profile', function () {
+    $user = User::factory()->create(['preview_images' => existingPortfolioPreviews()]);
+    $this->mock(ProfileImages::class, function (MockInterface $images) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldNotReceive('downloadTemporary');
+    });
+
+    $this->actingAs($user)->withSession(['profile_uploads' => [
+        'profile_photo' => ['user_id' => $user->id, 'path' => $user->id.'/expired', 'mime' => 'image/png', 'expires_at' => now()->subSecond()->timestamp],
+    ]])->post(route('dashboard.store'), [
+        ...validPortfolioLinks(),
+        'name' => $user->name,
+        'block' => 'BSCS-2A',
+        'socials' => ['email' => ''],
+        'staged' => ['profile_photo' => '1'],
+    ])->assertInvalid(['profile_photo']);
+
+    expect($user->fresh()->profile_photo_path)->toBeNull();
+});
+
+test('invalid staged image contents are not published', function () {
+    $user = User::factory()->create(['preview_images' => existingPortfolioPreviews()]);
+    $path = $user->id.'/invalid-image';
+    $this->mock(ProfileImages::class, function (MockInterface $images) use ($path) {
+        $images->shouldReceive('usesDirectUploads')->andReturnTrue();
+        $images->shouldReceive('downloadTemporary')->once()->with($path, 'profile_photo')->andReturn('<script>invalid image</script>');
+        $images->shouldNotReceive('store');
+        $images->shouldReceive('deleteTemporary')->once()->with($path);
+    });
+
+    $this->actingAs($user)->withSession(['profile_uploads' => [
+        'profile_photo' => ['user_id' => $user->id, 'path' => $path, 'mime' => 'image/png', 'expires_at' => now()->addMinutes(10)->timestamp],
+    ]])->post(route('dashboard.store'), [
+        ...validPortfolioLinks(),
+        'name' => $user->name,
+        'block' => 'BSCS-2A',
+        'socials' => ['email' => ''],
+        'staged' => ['profile_photo' => '1'],
+    ])->assertInvalid(['profile_photo']);
+
+    expect($user->fresh()->profile_photo_path)->toBeNull();
+    expect(session('profile_uploads.profile_photo'))->toBeNull();
+});
+
+test('profile images use their public Supabase URLs when configured', function () {
+    config([
+        'filesystems.profile_storage' => 'supabase',
+        'filesystems.disks.s3.endpoint' => 'https://project.storage.supabase.co/storage/v1/s3',
+        'filesystems.disks.s3.bucket' => 'portfolio-images',
+        'filesystems.disks.s3.url' => null,
+    ]);
+    $user = User::factory()->create([
+        ...validPortfolioLinks(),
+        'name' => 'Visible Student',
+        'block' => 'BSCS-2A',
+        'bio' => 'Student bio.',
+        'profile_photo_path' => 'profile-pictures/photo.png',
+        'preview_images' => existingPortfolioPreviews(),
+    ]);
+    $photoUrl = 'https://project.storage.supabase.co/storage/v1/object/public/portfolio-images/profile-pictures/photo.png';
+    $previewUrl = 'https://project.storage.supabase.co/storage/v1/object/public/portfolio-images/portfolio-previews/desktop-1.png';
+
+    $this->get(route('home'))->assertOk()->assertSee($photoUrl)->assertSee($previewUrl);
+    $this->actingAs($user)->get(route('dashboard'))->assertOk()->assertSee($photoUrl)->assertSee($previewUrl);
+    $this->get(route('profile.student', $user))->assertOk()->assertSee($photoUrl)->assertSee($previewUrl);
 });

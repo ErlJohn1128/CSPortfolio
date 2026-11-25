@@ -266,14 +266,62 @@ function initializeImageCropping() {
                     activeControl = control;
                     const result = await control.prepare();
                     if (result) {
-                        prepared.push(result);
+                        prepared.push({ ...result, control });
                     }
                 }
-                for (const { input, file } of prepared) {
-                    const files = new DataTransfer();
-                    files.items.add(file);
-                    input.files = files.files;
+
+                if (form.dataset.directUploadUrl) {
+                    const staged = [];
+                    for (const [index, { input, file, control }] of prepared.entries()) {
+                        activeControl = control;
+                        submit.textContent = `Uploading image ${index + 1} of ${prepared.length}...`;
+                        const slot = input.name === 'profile_photo'
+                            ? 'profile_photo'
+                            : input.name.match(/^previews\[([a-z]+_[1-3])\]$/)?.[1];
+                        if (!slot) {
+                            throw new Error('The image could not be uploaded. Please try again.');
+                        }
+
+                        const response = await fetch(form.dataset.directUploadUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                            },
+                            body: JSON.stringify({ slot, mime: file.type }),
+                        });
+                        if (!response.ok) {
+                            throw new Error('Could not prepare the image upload. Please try again.');
+                        }
+                        const { url } = await response.json();
+                        const upload = await fetch(url, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': file.type },
+                            body: file,
+                        });
+                        if (!upload.ok) {
+                            throw new Error('The image upload failed. Please try again.');
+                        }
+                        staged.push({ input, slot });
+                    }
+
+                    for (const { input, slot } of staged) {
+                        input.disabled = true;
+                        const marker = document.createElement('input');
+                        marker.type = 'hidden';
+                        marker.name = `staged[${slot}]`;
+                        marker.value = '1';
+                        form.append(marker);
+                    }
+                } else {
+                    for (const { input, file } of prepared) {
+                        const files = new DataTransfer();
+                        files.items.add(file);
+                        input.files = files.files;
+                    }
                 }
+                submit.textContent = 'Saving changes...';
                 HTMLFormElement.prototype.submit.call(form);
             } catch (exception) {
                 activeControl.showError(exception instanceof Error && exception.message

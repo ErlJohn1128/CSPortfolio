@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title>{{ $student->name ?? 'Allen Bien Carlo T. Tatel' }} - {{ config('app.name', 'CSPortfolio') }}</title>
+        <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
 
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -36,7 +37,7 @@
                     <div class="p-5 sm:p-6">
                         <div class="flex items-center gap-4">
                             @if (isset($student) && $student->profile_photo_path)
-                                <img src="{{ asset('storage/'.$student->profile_photo_path) }}" alt="Profile picture of {{ $student->name }}" class="h-16 w-16 shrink-0 rounded-full object-cover" />
+                                <img src="{{ app(\App\Services\ProfileImages::class)->url($student->profile_photo_path) }}" alt="Profile picture of {{ $student->name }}" class="h-16 w-16 shrink-0 rounded-full object-cover" />
                             @endif
                             <div class="min-w-0">
                                 <p class="text-xs font-medium text-blue-500">{{ isset($student) ? ($student->block ?? 'Block not provided') : 'BSCS-2A' }}</p>

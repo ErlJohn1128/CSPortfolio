@@ -12,12 +12,12 @@
         <div @class(['carousel-slide relative w-full', 'hidden' => ! $loop->first])>
             <div class="relative mx-auto max-w-4xl pb-[4%]">
                 <div class="w-[89%] rounded-lg border border-white/70 bg-white p-1 shadow-2xl shadow-slate-900/20 dark:border-white/15 dark:bg-slate-800 dark:shadow-black/40 sm:p-1.5">
-                    <img src="{{ asset('storage/'.$previews['desktop_'.$index]) }}" alt="Desktop preview {{ $index }} for {{ $student->name }}" class="aspect-video w-full rounded-sm object-cover" />
+                    <img src="{{ app(\App\Services\ProfileImages::class)->url($previews['desktop_'.$index]) }}" alt="Desktop preview {{ $index }} for {{ $student->name }}" class="aspect-video w-full rounded-sm object-cover" />
                 </div>
                 <div class="absolute bottom-0 right-0 w-[22%] rounded-[1.15rem] bg-gradient-to-br from-zinc-400 via-zinc-700 to-zinc-900 p-[3px] shadow-2xl shadow-slate-900/40 ring-1 ring-black/30 sm:rounded-[1.8rem] sm:p-1">
                     <div class="relative rounded-[0.95rem] bg-black p-[3px] sm:rounded-[1.55rem] sm:p-1">
                         <div class="relative overflow-hidden rounded-[0.7rem] bg-zinc-900 sm:rounded-[1.25rem]">
-                            <img src="{{ asset('storage/'.$previews['mobile_'.$index]) }}" alt="Mobile preview {{ $index }} for {{ $student->name }}" class="aspect-[9/16] w-full object-cover" />
+                            <img src="{{ app(\App\Services\ProfileImages::class)->url($previews['mobile_'.$index]) }}" alt="Mobile preview {{ $index }} for {{ $student->name }}" class="aspect-[9/16] w-full object-cover" />
                             <div aria-hidden="true" class="absolute left-1/2 top-[2%] h-[3%] min-h-1 w-[32%] -translate-x-1/2 rounded-full bg-black"></div>
                             <div aria-hidden="true" class="absolute bottom-[2%] left-1/2 h-0.5 w-1/3 -translate-x-1/2 rounded-full bg-white/80"></div>
                         </div>

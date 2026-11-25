@@ -15,6 +15,10 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    'profile_storage' => env('PROFILE_STORAGE', 'local'),
+
+    'profile_upload_bucket' => env('PROFILE_UPLOAD_BUCKET', 'portfolio-uploads'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
