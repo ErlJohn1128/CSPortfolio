@@ -149,7 +149,7 @@ class ProfileImages
         $config = config('filesystems.disks.s3');
         foreach (['key', 'secret', 'region', 'endpoint', 'bucket'] as $name) {
             if (empty($config[$name])) {
-                throw new RuntimeException('Supabase image storage is not fully configured.');
+                throw new RuntimeException("Supabase image storage is missing config key: {$name}");
             }
         }
 
