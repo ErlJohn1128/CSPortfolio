@@ -4,6 +4,8 @@ use App\Models\User;
 use App\Services\ProfileImages;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
 
@@ -464,6 +466,42 @@ test('only verified users can request a direct image upload', function () {
     $user = User::factory()->unverified()->create();
     $this->actingAs($user)->postJson(route('dashboard.upload-url'), ['slot' => 'profile_photo', 'mime' => 'image/png'])
         ->assertForbidden();
+});
+
+test('a missing storage key reports environment presence without exposing its value', function () {
+    $user = User::factory()->create();
+    $processKey = getenv('AWS_ACCESS_KEY_ID');
+    $serverKey = $_SERVER['AWS_ACCESS_KEY_ID'] ?? null;
+    $envKey = $_ENV['AWS_ACCESS_KEY_ID'] ?? null;
+    putenv('AWS_ACCESS_KEY_ID=test-sensitive-value');
+    $_SERVER['AWS_ACCESS_KEY_ID'] = 'test-sensitive-value';
+    $_ENV['AWS_ACCESS_KEY_ID'] = 'test-sensitive-value';
+    config(['filesystems.profile_storage' => 'supabase', 'filesystems.disks.s3.key' => null]);
+    Exceptions::fake();
+    Log::shouldReceive('error')->once()->with('Supabase access key configuration diagnostics', [
+        'configuration_cached' => false,
+        'process_key_present' => true,
+        'server_key_present' => true,
+        'env_key_present' => true,
+    ]);
+
+    try {
+        $this->actingAs($user)->postJson(route('dashboard.upload-url'), ['slot' => 'profile_photo', 'mime' => 'image/png'])
+            ->assertInternalServerError();
+        Exceptions::assertReported(RuntimeException::class);
+    } finally {
+        $processKey === false ? putenv('AWS_ACCESS_KEY_ID') : putenv('AWS_ACCESS_KEY_ID='.$processKey);
+        if ($serverKey === null) {
+            unset($_SERVER['AWS_ACCESS_KEY_ID']);
+        } else {
+            $_SERVER['AWS_ACCESS_KEY_ID'] = $serverKey;
+        }
+        if ($envKey === null) {
+            unset($_ENV['AWS_ACCESS_KEY_ID']);
+        } else {
+            $_ENV['AWS_ACCESS_KEY_ID'] = $envKey;
+        }
+    }
 });
 
 test('a direct upload URL is restricted to an allowed image slot and type', function () {

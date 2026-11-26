@@ -6,6 +6,7 @@ use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use DateTimeInterface;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -149,6 +150,15 @@ class ProfileImages
         $config = config('filesystems.disks.s3');
         foreach (['key', 'secret', 'region', 'endpoint', 'bucket'] as $name) {
             if (empty($config[$name])) {
+                if ($name === 'key') {
+                    Log::error('Supabase access key configuration diagnostics', [
+                        'configuration_cached' => app()->configurationIsCached(),
+                        'process_key_present' => ! empty(getenv('AWS_ACCESS_KEY_ID')),
+                        'server_key_present' => ! empty($_SERVER['AWS_ACCESS_KEY_ID']),
+                        'env_key_present' => ! empty($_ENV['AWS_ACCESS_KEY_ID']),
+                    ]);
+                }
+
                 throw new RuntimeException("Supabase image storage is missing config key: {$name}");
             }
         }
